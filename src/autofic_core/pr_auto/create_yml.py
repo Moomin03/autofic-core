@@ -113,10 +113,7 @@ jobs:
 """
         with open(pr_notify_yml_path, "w", encoding="utf-8") as f:
             f.write(pr_notify_yml_content)
-            
-    def create_eslint_yml(self):
-      
-            
+ 
     def push_pr_yml(self, user_name, repo_name, token, branch_name):
         """
         Adds, commits, and pushes the created workflow YAML file to the specified git branch.
