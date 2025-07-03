@@ -41,33 +41,81 @@ class AboutYml:
         os.makedirs(workflow_dir, exist_ok=True)
 
         pr_notify_yml_path = os.path.join(workflow_dir, "pr_notify.yml")
-        pr_notify_yml_content = """name: PR Notifier
+        pr_notify_yml_content = """name: Autofic SAST for Selected JavaScript Repos
 
 on:
   pull_request:
-    types: [opened, reopened, closed]
+  workflow_dispatch:
+  schedule:
+    - cron: '00 21 * * 0'  # 매주 월요일 오전 6시
 
 jobs:
-  notify:
+  eslint-check:
+    name: ESLint Check
     runs-on: ubuntu-latest
+
     steps:
-      - name: Notify Discord
-        env:
-          DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 18
+
+      - name: Install Node dependencies
         run: |
-          curl -H "Content-Type: application/json" \
-          -d '{"content": "🔔 Pull Request [${{ github.event.pull_request.title }}](${{ github.event.pull_request.html_url }}) by ${{ github.event.pull_request.user.login }} - ${{ github.event.action }}"}' \
-          $DISCORD_WEBHOOK_URL
-      - name: Notify Slack
+          if [ -f package-lock.json ]; then
+            npm ci
+          else
+            npm install
+          fi
+
+      - name: Run ESLint check
+        run: npx eslint . --ext .js,.jsx
+
+  find-and-run:
+    name: Python SAST Runner
+    runs-on: ubuntu-latest
+    needs: eslint-check  # ✅ ESLint 성공해야 실행됨 (선택)
+
+    steps:
+      - name: Checkout this repository
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: true
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install Python dependencies
+        run: |
+          pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install -e .
+
+      - name: Set Git config
+        run: |
+          git config --global user.email "github-actions@users.noreply.github.com"
+          git config --global user.name "github-actions"
+
+      - name: Run ci_automation.py automatically
         env:
+          GITHUB_TOKEN: ${{ secrets.GIT_TOKEN }}
+          OPENAI_API_KEY: ${{ secrets.OPEN_API_KEY }}
+          USER_NAME: ${{ secrets.USER_NAME }}
+          DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
           SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
         run: |
-          curl -H "Content-Type: application/json" \
-          -d '{"text": ":bell: Pull Request <${{ github.event.pull_request.html_url }}|${{ github.event.pull_request.title }}> by ${{ github.event.pull_request.user.login }} - ${{ github.event.action }}"}' \
-          $SLACK_WEBHOOK_URL
+          python src/autofic_core/ci_cd_auto/ci_automation.py
 """
         with open(pr_notify_yml_path, "w", encoding="utf-8") as f:
             f.write(pr_notify_yml_content)
+            
+    def create_eslint_yml(self):
+      
             
     def push_pr_yml(self, user_name, repo_name, token, branch_name):
         """
