@@ -15,12 +15,31 @@ jobs:
         with:
           persist-credentials: true
 
+      # ✅ Node.js 설치 (추가)
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 18
+
+      # ✅ npm 의존성 설치 (추가)
+      - name: Install Node dependencies
+        run: |
+          if [ -f package-lock.json ]; then
+            npm ci
+          else
+            npm install
+          fi
+
+      # ✅ ESLint 검사 실행 (추가)
+      - name: Run ESLint check
+        run: npx eslint . --ext .js,.jsx
+
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: '3.11'
 
-      - name: Install dependencies
+      - name: Install Python dependencies
         run: |
           pip install --upgrade pip
           pip install -r requirements.txt
